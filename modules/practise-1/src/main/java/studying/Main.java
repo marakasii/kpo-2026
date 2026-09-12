@@ -4,10 +4,10 @@ public class Main {
     public static void main(String[] args) {
         var factory = new HseCarFactory();
 
-        factory.addCar(1);
-        factory.addCar(2);
-        factory.addCar(3);
-        factory.addCar(4);
+        factory.createCar(1);
+        factory.createCar(2);
+        factory.createCar(3);
+        factory.createCar(4);
         factory.addCustomer(new Customer("Вася"));
         factory.addCustomer(new Customer("Вова"));
         factory.addCustomer(new Customer("Света"));

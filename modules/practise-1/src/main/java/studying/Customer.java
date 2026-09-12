@@ -7,13 +7,18 @@ import lombok.ToString;
 @ToString
 public class Customer {
     @Getter
-    private final String fullName;
-
-    @Getter
     @Setter
     private Car car;
 
-    public Customer(String fullName) {
-        this.fullName = fullName;
+    @Getter
+    private String FIO;
+
+    public Customer(Car car, String FIO) {
+        this.car = car;
+        this.FIO = FIO;
+    }
+
+    public Customer(String FIO) {
+        this.FIO = FIO;
     }
 }
