@@ -1,19 +1,20 @@
 package studying;
 
-public class Engine {
-    private final int size;
-    public static final String TYPE = "ELECTRIC";
+import lombok.AllArgsConstructor;
+import lombok.Getter;
 
-    public Engine(int size) {
-        this.size = size;
-    }
+@Getter
+@AllArgsConstructor
+public class Engine {
+    @Getter
+    private final int pedSize;
 
     public int getSize() {
-        return size;
+        return pedSize;
     }
 
     @Override
     public String toString() {
-        return "Engine{" + "size=" + size + '}';
+        return "Engine{" + "size=" + pedSize + '}';
     }
 }
