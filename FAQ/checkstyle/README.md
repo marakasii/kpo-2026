@@ -10,7 +10,6 @@ Checkstyle проверяет исходный Java-код по набору п�
 
 ```kotlin
 plugins {
-    java
     checkstyle
 }
 

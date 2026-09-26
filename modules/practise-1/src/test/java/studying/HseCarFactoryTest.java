@@ -8,7 +8,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 class HseCarFactoryTest {
     @Test
     void saleCarAssignsCarsInQueueOrderAndLiquidatesRemainingStock() {
-        var factory = new HseCarFactory();
         var firstCustomer = new Customer("Иван Иванов");
         var secondCustomer = new Customer("Пётр Петров");
         var lateCustomer = new Customer("Анна Смирнова");
