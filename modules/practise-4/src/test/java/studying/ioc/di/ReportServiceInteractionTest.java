@@ -1,6 +1,7 @@
 package studying.ioc.di;
 
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -12,6 +13,7 @@ import java.time.LocalTime;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.mockito.InOrder;
 import studying.service.ReportService;
 import studying.exception.ApplicationErrorCode;
 import studying.exception.ApplicationException;
@@ -38,6 +40,10 @@ class ReportServiceInteractionTest {
 
         verify(saver, times(1)).save(REPORT);
         verify(sender, times(1)).send(REPORT, EMAIL);
+        final InOrder order = inOrder(saver, sender);
+        order.verify(saver).save(REPORT);
+        order.verify(sender).send(REPORT, EMAIL);
+        order.verifyNoMoreInteractions();
     }
 
     @Test

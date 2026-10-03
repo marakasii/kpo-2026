@@ -46,11 +46,11 @@ public record Report(
      */
     @Override
     public String toString() {
-        return "%s%nДата: %s%nВремя: %s%n--------------------------------%n"
-                .formatted(title, date, time.withNano(0))
+        return ("%s%nДата: %s%nВремя: %s%n--------------------------------%n"
                 + "Продано автомобилей: %d шт.%n"
                 + "Продано мотоциклов: %d шт.%n"
-                + "--------------------------------%n"
-                .formatted(carsSold, motorcyclesSold);
+                + "--------------------------------%n")
+                .formatted(title, date, time.withNano(0), carsSold,
+                        motorcyclesSold);
     }
 }
