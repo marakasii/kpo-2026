@@ -5,28 +5,36 @@ import lombok.Getter;
 /** Runtime exception with an application-level error code and root cause. */
 @Getter
 public class ApplicationException extends RuntimeException {
+    /** Application error code associated with this exception. */
     private final ApplicationErrorCode code;
 
     /**
      * Creates an application error.
      *
-     * @param code error code
+     * @param errorCode error code
      * @param message description
-     * @param cause original exception, or {@code null} when there is no root cause
+     * @param cause original exception, or {@code null} if absent
      */
-    public ApplicationException(ApplicationErrorCode code, String message, Throwable cause) {
+    public ApplicationException(
+            final ApplicationErrorCode errorCode,
+            final String message,
+            final Throwable cause
+    ) {
         super(message, cause);
-        this.code = code;
+        this.code = errorCode;
     }
 
     /**
      * Creates an application error.
      *
-     * @param code error code
+     * @param errorCode error code
      * @param message description
      */
-    public ApplicationException(ApplicationErrorCode code, String message) {
+    public ApplicationException(
+            final ApplicationErrorCode errorCode,
+            final String message
+    ) {
         super(message);
-        this.code = code;
+        this.code = errorCode;
     }
 }

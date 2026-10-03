@@ -9,11 +9,13 @@ import studying.exception.ApplicationException;
 import studying.model.Report;
 import studying.service.ReportSaver;
 
-public class ReportSaverImpl implements ReportSaver {
-    private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("HH-mm-ss");
+public final class ReportSaverImpl implements ReportSaver {
+    /** Formatter used in report file names. */
+    private static final DateTimeFormatter DATE_TIME_FORMATTER =
+            DateTimeFormatter.ofPattern("HH-mm-ss");
 
     @Override
-    public void save(Report report) {
+    public void save(final Report report) {
         if (report == null) {
             throw new ApplicationException(
                     ApplicationErrorCode.VALIDATION_ERROR,
@@ -21,17 +23,22 @@ public class ReportSaverImpl implements ReportSaver {
             );
         }
 
-        var reportForSave = Path.of("modules/practise-2/reports", "report-%s-%s.txt".formatted(
-                report.date(),
-                report.time().format(DATE_TIME_FORMATTER)
-        ));
+        var reportForSave = Path.of(
+                "modules/practise-2/reports",
+                "report-%s-%s.txt".formatted(
+                        report.date(), report.time().format(DATE_TIME_FORMATTER)
+                )
+        );
 
         try {
             Files.createDirectories(reportForSave.getParent());
             Files.writeString(reportForSave, report.toString());
         } catch (IOException exception) {
-            throw new ApplicationException(ApplicationErrorCode.FILE_WRITE_ERROR,
-                    "Не удалось сохранить отчёт в " + reportForSave, exception);
+            throw new ApplicationException(
+                    ApplicationErrorCode.FILE_WRITE_ERROR,
+                    "Не удалось сохранить отчёт в " + reportForSave,
+                    exception
+            );
         }
     }
 }
