@@ -10,4 +10,4 @@ management:
     web:
       base-path: /
       exposure:
-        include: health,metrics
+        include: health,metrics,prometheus

@@ -17,6 +17,9 @@ application {
 }
 
 dependencies {
+    implementation(platform("org.springframework.boot:spring-boot-dependencies:4.1.1"))
+    implementation("io.micrometer:micrometer-registry-prometheus")
+
     implementation("org.springframework.boot:spring-boot-starter:4.1.1")
     implementation("org.springframework.boot:spring-boot-starter-actuator:4.1.1")
     implementation("org.springframework.boot:spring-boot-starter-webmvc:4.1.1")

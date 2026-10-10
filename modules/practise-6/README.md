@@ -1,5 +1,85 @@
 # Практика 6. Доставка уведомлений: Strategy и Observer
 
+## Запуск приложения с Prometheus и Grafana
+
+Нужны JDK 25 и запущенный Docker Desktop (либо Docker Engine с Compose).
+Выполните из корня репозитория:
+
+```bash
+./gradlew :modules:practise-6:bootRun
+```
+
+В другом терминале запустите мониторинг:
+
+```bash
+docker compose -f modules/practise-6/docker-compose.yml up -d
+```
+
+Приложение работает на компьютере на порту 8080. Prometheus в контейнере
+обращается к нему через `host.docker.internal:8080` каждые 15 секунд.
+В конфигурации Actuator установлен `base-path: /`, поэтому адрес экспорта
+метрик — `/prometheus`.
+
+- Метрики приложения: http://localhost:8080/prometheus.
+- Prometheus: http://localhost:9090; в разделе **Status → Targets** цель
+  `notification-delivery` должна иметь состояние **UP**.
+- Grafana: http://localhost:3000; логин и пароль по умолчанию `admin` / `admin`.
+  Пароль можно задать переменной `GRAFANA_ADMIN_PASSWORD` перед первым запуском.
+
+Источник данных **Prometheus** подключается в Grafana автоматически.
+JSON-файлы дашбордов положите в
+`modules/practise-6/monitoring/grafana/dashboards/`, например `jvm.json`.
+Grafana загрузит их в **Dashboards → Practice 6** при запуске и будет
+проверять изменения каждые 30 секунд.
+
+После добавления провайдера к уже запущенной Grafana примените новые mounts:
+
+```bash
+docker compose -f modules/practise-6/docker-compose.yml up -d grafana
+```
+
+Используйте JSON модели дашборда в формате Classic, совместимом с Grafana 12.1.
+В ссылках на источник данных укажите `{"type": "prometheus", "uid": "prometheus"}`.
+Если скачанный шаблон содержит `${DS_PROMETHEUS}` (или другую переменную
+источника данных из `__inputs`), замените её на `prometheus`:
+файловый провайдер не показывает диалог выбора источника при импорте.
+Изменения дашбордов сохраняйте в JSON-файлах.
+
+Метки `application="notification-delivery"` и `namespace="local"` добавляет
+Prometheus при сборе метрик, чтобы JVM-шаблон мог выбрать локальное приложение.
+После изменения `monitoring/prometheus.yml` перезапустите Prometheus:
+
+```bash
+docker compose -f modules/practise-6/docker-compose.yml restart prometheus
+```
+
+Откройте **Explore**, выберите Prometheus и выполните запрос:
+
+```promql
+delivery_attempts_total{job="notification-delivery"}
+```
+
+Метка `result` различает `success`, `temporary_failure` и `permanent_failure`.
+Счётчики увеличиваются при обработке попыток доставки; сразу после запуска
+приложения они равны нулю. Для графика числа попыток в секунду используйте
+`rate(delivery_attempts_total{job="notification-delivery"}[5m])`.
+
+Зависимость экспорта добавлена в `build.gradle.kts`:
+
+```kotlin
+implementation("io.micrometer:micrometer-registry-prometheus")
+```
+
+Её версию задаёт BOM Spring Boot 4.1.1, подключённый через `implementation(platform(...))`.
+
+Остановка мониторинга:
+
+```bash
+docker compose -f modules/practise-6/docker-compose.yml down
+```
+
+Данные Prometheus и настройки Grafana сохраняются в Docker volumes.
+
 ## Цель
 
 Продолжить сервис уведомлений из [практики 5](../practise-5/README.md): добавить
