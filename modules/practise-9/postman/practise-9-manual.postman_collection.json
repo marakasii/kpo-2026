@@ -1,0 +1,318 @@
+{
+  "info": {
+    "name": "Practise 9 — ручные запросы к Docker",
+    "description": "Импортируйте коллекцию в Postman. Environment не требуется. Выполните запросы 01–04 по порядку; затем используйте запрос 05 с любым prompt. Все ID и API-ключ подставляются автоматически. Адрес соответствует пробросу 8080:8080 в docker-compose.yml. Если выбрана другая OLLAMA_MODEL, измените model во вкладке Variables коллекции. Секреты заполняются только локально после выпуска ключа.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080",
+      "type": "string"
+    },
+    {
+      "key": "model",
+      "value": "qwen3:4b",
+      "type": "string"
+    },
+    {
+      "key": "userId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "apiKey",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "apiKeyId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "requestId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "idempotencyKey",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "lastChatBody",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Подготовка — выполнить по порядку",
+      "item": [
+        {
+          "name": "01 — Проверить сервис",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/actuator/health",
+            "description": "Сервис из docker-compose.yml доступен с компьютера по localhost:8080."
+          }
+        },
+        {
+          "name": "02 — Создать пользователя",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/users",
+            "description": "Нажмите Send: уникальный email создаётся автоматически, userId сохраняется в коллекции.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"student-{{$guid}}@example.com\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Пользователь создан\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set(\"userId\", pm.response.json().id);",
+                  "  [\"apiKey\", \"apiKeyId\", \"requestId\", \"idempotencyKey\", \"lastChatBody\"].forEach(k => pm.collectionVariables.set(k, \"\"));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "03 — Пополнить баланс",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/users/{{userId}}/top-ups",
+            "description": "Измените amount в Body при необходимости. Каждый Send пополняет кошелёк на эту сумму.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 10000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "04 — Выпустить API-ключ",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/users/{{userId}}/api-keys",
+            "description": "Ключ и его идентификатор автоматически сохраняются для следующих запросов."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Ключ выпущен\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code === 201) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set(\"apiKey\", body.key);",
+                  "  pm.collectionVariables.set(\"apiKeyId\", body.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2. Запросы к сервису",
+      "item": [
+        {
+          "name": "05 — Отправить новый prompt",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idempotencyKey}}"
+              }
+            ],
+            "url": "{{baseUrl}}/v1/chat/completions",
+            "description": "Измените prompt и maxTokens во вкладке Body, затем Send. Каждый Send создаёт новый Idempotency-Key. Для проверки повтора используйте запрос 06. maxTokens ограничивает число выходных токенов (частей слов), а не символов. По умолчанию 512; допустимо от 1 до 4096. При достижении лимита ответ может оборваться.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"{{model}}\",\n  \"prompt\": \"Объясни простыми словами, зачем нужны транзакции в базе данных.\",\n  \"maxTokens\": 512\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{apiKey}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"idempotencyKey\", pm.variables.replaceIn(\"{{$guid}}\"));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Ответ модели получен\", () => pm.response.to.have.status(200));",
+                  "if (pm.response.code === 200) {",
+                  "  pm.collectionVariables.set(\"requestId\", pm.response.json().requestId);",
+                  "  pm.collectionVariables.set(\"lastChatBody\", pm.variables.replaceIn(pm.request.body.raw));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "06 — Повторить последний AI-запрос",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idempotencyKey}}"
+              }
+            ],
+            "url": "{{baseUrl}}/v1/chat/completions",
+            "description": "После успешного запроса 05 отправляет сохранённое тело с тем же ключом. Повторного списания не будет. Для другого prompt используйте запрос 05.",
+            "body": {
+              "mode": "raw",
+              "raw": "{{lastChatBody}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{apiKey}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Ответ исходного запроса\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().requestId).to.eql(pm.collectionVariables.get(\"requestId\"));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "07 — Состояние AI-запроса",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/requests/{{requestId}}",
+            "description": "Использует requestId последнего успешного запроса 05."
+          }
+        },
+        {
+          "name": "08 — Баланс и резерв",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/users/{{userId}}/wallet",
+            "description": "balance — общий баланс, reservedBalance — резерв, available — доступные кредиты."
+          }
+        },
+        {
+          "name": "09 — Журнал операций",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/users/{{userId}}/wallet/transactions?page=0&size=20",
+            "description": "Изменяйте page и size во вкладке Params. Размер страницы — от 1 до 100."
+          }
+        },
+        {
+          "name": "10 — Модели и тарифы",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/models?page=0&size=20",
+            "description": "Текущие доступные модели и цены за 1000 входных и выходных токенов."
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Управление ключом",
+      "item": [
+        {
+          "name": "Отозвать текущий API-ключ",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/api-keys/{{apiKeyId}}",
+            "description": "После этого запросы 05 и 06 получат 401. Для продолжения выпустите новый ключ запросом 04."
+          }
+        }
+      ]
+    }
+  ]
+}

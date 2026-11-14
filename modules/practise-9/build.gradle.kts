@@ -34,11 +34,14 @@ dependencies {
 
     testImplementation("org.springframework.boot:spring-boot-starter-test:4.1.1")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    testImplementation("org.testcontainers:postgresql:1.21.3")
+    testImplementation("io.qameta.allure:allure-junit5:2.32.0")
 }
 
 tasks.withType<Test> {
     useJUnitPlatform()
     systemProperty("e2e.base-url", System.getProperty("e2e.base-url", ""))
+    systemProperty("e2e.model", System.getProperty("e2e.model", "qwen3:4b"))
 }
 
 allure {

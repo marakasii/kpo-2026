@@ -1,0 +1,5 @@
+<aspectj>
+    <weaver>
+        <include within="studying.gateway.e2e..*"/>
+    </weaver>
+</aspectj>

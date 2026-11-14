@@ -19,7 +19,7 @@ spring:
     ollama:
       base-url: ${SPRING_AI_OLLAMA_BASE_URL:http://localhost:11434}
       chat:
-        model: ${APP_OLLAMA_MODEL:qwen2.5:0.5b}
+        model: ${APP_OLLAMA_MODEL:qwen3:4b}
 
 management:
   endpoints:
@@ -31,3 +31,11 @@ management:
       probes:
         enabled: true
 
+
+app:
+  ollama-model: ${APP_OLLAMA_MODEL:qwen3:4b}
+  reservation-timeout-seconds: ${APP_RESERVATION_TIMEOUT_SECONDS:600}
+
+spring.http.clients:
+  connect-timeout: 5s
+  read-timeout: 120s

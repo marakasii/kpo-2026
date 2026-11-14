@@ -12,7 +12,7 @@ services:
       SPRING_DATASOURCE_PASSWORD: ai_gateway
       SPRING_JPA_HIBERNATE_DDL_AUTO: validate
       SPRING_AI_OLLAMA_BASE_URL: http://ollama:11434
-      APP_OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:0.5b}
+      APP_OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:4b}
     depends_on:
       postgres:
         condition: service_healthy
@@ -68,10 +68,16 @@ services:
       - /bin/sh
       - -c
     command:
-      - ollama pull "$${OLLAMA_MODEL}"
+      - |
+        if [ "$${OLLAMA_MODEL}" = "qwen3:4b" ]; then
+          ollama pull qwen3:4b-instruct-2507-q4_K_M &&
+          ollama cp qwen3:4b-instruct-2507-q4_K_M qwen3:4b
+        else
+          ollama pull "$${OLLAMA_MODEL}"
+        fi
     environment:
       OLLAMA_HOST: http://ollama:11434
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:0.5b}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:4b}
     volumes:
       - ollama_data:/root/.ollama
     depends_on:
