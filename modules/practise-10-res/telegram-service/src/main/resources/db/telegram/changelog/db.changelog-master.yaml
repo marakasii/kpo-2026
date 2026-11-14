@@ -13,3 +13,9 @@ databaseChangeLog:
       file: db/telegram/changelog/changes/006-create-telegram-poll-state.sql
   - include:
       file: db/telegram/changelog/changes/007-seed-telegram-poll-state.sql
+  - include:
+      file: db/telegram/changelog/changes/008-add-message-part-index.sql
+  - include:
+      file: db/telegram/changelog/changes/009-drop-single-update-reply.sql
+  - include:
+      file: db/telegram/changelog/changes/010-unique-update-message-part.sql

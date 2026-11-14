@@ -28,8 +28,8 @@ public class AiRequestEntity {
     @JoinColumn(name = "user_id", nullable = false)
     private UserEntity user;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "api_key_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "api_key_id")
     private ApiKeyEntity apiKey;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
@@ -39,6 +39,9 @@ public class AiRequestEntity {
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "model_price_id", nullable = false)
     private ModelPriceEntity modelPrice;
+
+    @Column(nullable = false, length = 16)
+    private String source;
 
     @Column(name = "idempotency_key", nullable = false)
     private String idempotencyKey;
@@ -78,6 +81,7 @@ public class AiRequestEntity {
         this.id = id;
         this.user = user;
         this.apiKey = apiKey;
+        this.source = apiKey == null ? "TELEGRAM" : "API";
         this.model = model;
         this.modelPrice = modelPrice;
         this.idempotencyKey = idempotencyKey;

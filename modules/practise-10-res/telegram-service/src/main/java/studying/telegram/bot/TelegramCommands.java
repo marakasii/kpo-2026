@@ -46,13 +46,33 @@ public class TelegramCommands {
         } else if ("/unlink".equals(command)) {
             jdbc.update("DELETE FROM telegram_bindings WHERE telegram_user_id = ? AND chat_id = ?", sender, chat);
             response = "Привязка отключена. Новые уведомления отправляться не будут.";
-        } else if ("/balance".equals(command) && expected != null) {
+        } else if (("/balance".equals(command) || "/ask".equals(command)) && expected != null) {
             Binding current = binding(sender, chat);
             if (current == null || !current.id().equals(expected.id())) {
-                response = "Привязка изменилась. Повторите /balance.";
+                response = "Привязка изменилась. Ответ не отправлен; проверьте /help.";
             }
         }
-        jdbc.update("INSERT INTO telegram_notifications (id, update_id, chat_id, payload) VALUES (?, ?, ?, ?::jsonb)",
-                UUID.randomUUID(), update, chat, json.writeValueAsString(new NotificationInbox.Message(response)));
+        UUID bindingId = ("/ask".equals(command) || "/balance".equals(command)) && expected != null
+                ? expected.id() : null;
+        int part = 0;
+        for (String chunk : chunks(response)) {
+            jdbc.update("""
+                    INSERT INTO telegram_notifications (id, update_id, chat_id, binding_id, payload, part_index)
+                    VALUES (?, ?, ?, ?, ?::jsonb, ?)
+                    """, UUID.randomUUID(), update, chat, bindingId,
+                    json.writeValueAsString(new NotificationInbox.Message(chunk)), part++);
+        }
+    }
+
+    static java.util.List<String> chunks(String text) {
+        var result = new java.util.ArrayList<String>();
+        int start = 0;
+        while (start < text.length()) {
+            int end = Math.min(start + 3500, text.length());
+            if (end < text.length() && Character.isHighSurrogate(text.charAt(end - 1))) { end--; }
+            result.add(text.substring(start, end)); start = end;
+        }
+        if (result.isEmpty()) { result.add("Модель вернула пустой ответ."); }
+        return result;
     }
 }

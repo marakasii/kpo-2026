@@ -24,8 +24,12 @@ public class DeliveryQueue {
         return jdbc.query("""
                 WITH candidate AS (
                     SELECT id FROM %s
-                    WHERE (status = 'NEW' AND next_attempt_at <= now())
-                       OR (status = 'PROCESSING' AND locked_until <= now())
+                    WHERE ((status = 'NEW' AND next_attempt_at <= now())
+                       OR (status = 'PROCESSING' AND locked_until <= now()))
+                      AND NOT EXISTS (SELECT 1 FROM telegram_notifications previous
+                          WHERE previous.update_id = telegram_notifications.update_id
+                            AND previous.part_index < telegram_notifications.part_index
+                            AND previous.status NOT IN ('SENT', 'SKIPPED'))
                     ORDER BY created_at, id FOR UPDATE SKIP LOCKED LIMIT 1
                 )
                 UPDATE %s q SET status = 'PROCESSING', lock_token = ?,

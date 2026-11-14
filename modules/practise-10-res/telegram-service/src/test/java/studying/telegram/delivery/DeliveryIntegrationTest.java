@@ -287,6 +287,58 @@ class DeliveryIntegrationTest {
         }
     }
 
+    @Test
+    void plainTextQuestionUsesGatewayBillingAndReplayDoesNotChargeAgain() {
+        bind(1401);
+        String prompt = "Объясни транзакцию";
+        // Simulate Gateway success followed by a lost reply before Telegram commits its update.
+        String first = gatewayClient.ask(user, updateId + 1, prompt);
+        assertThat(first).contains("Test answer", "9989");
+        updates.handle(update(updateId + 1, 1401, prompt));
+        updates.handle(update(updateId + 1, 1401, prompt));
+        assertThat(accounts.wallet(user).balance()).isEqualTo(9989);
+        assertThat(gatewayDb.queryForObject("SELECT count(*) FROM ai_requests WHERE user_id=? AND source='TELEGRAM' AND api_key_id IS NULL",
+                Long.class, user)).isOne();
+        assertThat(count("SELECT count(*) FROM telegram_notifications WHERE update_id=?", updateId + 1)).isOne();
+        assertThat(telegramDb.queryForObject("SELECT payload->>'text' FROM telegram_notifications WHERE update_id=?",
+                String.class, updateId + 1)).contains("Test answer", "Списано: 11");
+    }
+
+    @Test
+    void askCommandAndUnlinkedOrEmptyWalletAreHandledWithoutRepeatedCharges() {
+        updates.handle(update(updateId, 1501, "/ask Привет"));
+        assertThat(gatewayDb.queryForObject("SELECT count(*) FROM ai_requests WHERE user_id=?", Long.class, user)).isZero();
+        updates.handle(update(updateId + 1, 1501, "/link " + code()));
+        updates.handle(update(updateId + 2, 1501, "/ask Что такое outbox?"));
+        assertThat(accounts.wallet(user).balance()).isEqualTo(9989);
+        gatewayDb.update("UPDATE wallets SET balance=0 WHERE user_id=?", user);
+        updates.handle(update(updateId + 3, 1501, "/ask Другой вопрос"));
+        assertThat(telegramDb.queryForObject("SELECT payload->>'text' FROM telegram_notifications WHERE update_id=?",
+                String.class, updateId + 3)).contains("Недостаточно кредитов");
+        assertThat(gatewayDb.queryForObject("SELECT count(*) FROM ai_requests WHERE user_id=?", Long.class, user)).isOne();
+        updates.handle(update(updateId + 4, 1501, "/ask"));
+        assertThat(telegramDb.queryForObject("SELECT payload->>'text' FROM telegram_notifications WHERE update_id=?",
+                String.class, updateId + 4)).contains("/ask <вопрос>");
+    }
+
+    @Test
+    void longAnswerIsQueuedAsOrderedPartsAndUnlinkCancelsPendingParts() {
+        bind(1601); clearNotifications();
+        String longAnswer = "А".repeat(3499) + "🙂" + "Б".repeat(4000);
+        var commands = telegram.getBean(TelegramCommands.class);
+        commands.complete(updateId + 1, 1601, 1601, "/ask", longAnswer, null, commands.binding(1601, 1601));
+        var parts = telegramDb.queryForList("SELECT payload->>'text' FROM telegram_notifications WHERE update_id=? ORDER BY part_index",
+                String.class, updateId + 1);
+        assertThat(parts).hasSize(3);
+        assertThat(String.join("", parts)).isEqualTo(longAnswer);
+        assertThat(parts).allSatisfy(part -> assertThat(part.length()).isLessThanOrEqualTo(3500));
+        var first = telegramQueue.claim().getFirst();
+        assertThat(telegramQueue.claim()).isEmpty(); // Later parts cannot overtake the first part.
+        telegramQueue.sent(first);
+        assertThat(telegramQueue.claim()).hasSize(1);
+        updates.handle(update(updateId + 2, 1601, "/unlink"));
+    }
+
     private String code() {
         return json.readTree(http.post().uri("/api/telegram/link-codes").header("Authorization", "Bearer " + apiKey)
                 .retrieve().body(String.class)).path("code").asText();

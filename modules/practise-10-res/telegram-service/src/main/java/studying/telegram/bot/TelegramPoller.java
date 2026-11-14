@@ -21,7 +21,7 @@ public class TelegramPoller {
         if (!properties.enabled()) { return; }
         UUID token = UUID.randomUUID();
         var offsets = jdbc.queryForList("""
-                UPDATE telegram_poll_state SET lock_token = ?, locked_until = now() + interval '60 seconds'
+                UPDATE telegram_poll_state SET lock_token = ?, locked_until = now() + interval '180 seconds'
                 WHERE id = 1 AND (locked_until IS NULL OR locked_until <= now()) RETURNING next_offset
                 """, Long.class, token);
         if (offsets.isEmpty()) { return; }
@@ -30,7 +30,7 @@ public class TelegramPoller {
             long offset = offsets.getFirst();
             for (var update : telegram.updates(offset)) {
                 // Renew before each DB operation and verify ownership after a slow poll.
-                int owned = jdbc.update("UPDATE telegram_poll_state SET locked_until = now() + interval '60 seconds' "
+                int owned = jdbc.update("UPDATE telegram_poll_state SET locked_until = now() + interval '180 seconds' "
                         + "WHERE id = 1 AND lock_token = ? AND locked_until > now()", token);
                 if (owned == 0) { return; }
                 updates.handle(update);
@@ -42,6 +42,9 @@ public class TelegramPoller {
         } catch (TelegramClient.Failure failure) {
             log.warn("Telegram polling failed: {}", failure.getMessage());
             retryDelay = Math.max(5, failure.retryAfter());
+        } catch (GatewayClient.Unavailable failure) {
+            log.warn("Gateway unavailable; Telegram update will be retried");
+            retryDelay = 5;
         } finally {
             // Release only our lease, retaining a server-requested delay on failure.
             jdbc.update("""
