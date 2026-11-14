@@ -39,6 +39,7 @@ public class BillingService {
     private final UsageRecordRepository usageRepository;
     private final WalletTransactionRepository transactionRepository;
     private final HashingService hashingService;
+    private final studying.gateway.repository.UserRepository userRepository;
     private final studying.gateway.events.OutboxWriter outbox;
 
     @Transactional
@@ -54,8 +55,30 @@ public class BillingService {
                         "INVALID_API_KEY", "API-ключ недействителен"));
         apiKey.markUsed(now);
 
+        return reserveForAccount(apiKey.getUser(), apiKey, idempotencyKey, requestHash,
+                modelName, prompt, maxTokens, now);
+    }
+
+    @Transactional
+    public Reservation reserveForTelegram(UUID userId, String idempotencyKey,
+            String requestHash, String modelName, String prompt, int maxTokens) {
+        var user = userRepository.findById(userId)
+                .filter(value -> value.getStatus() == UserStatus.ACTIVE)
+                .orElseThrow(() -> new ApiException(HttpStatus.FORBIDDEN,
+                        "USER_UNAVAILABLE", "Пользователь недоступен"));
+        return reserveForAccount(user, null, idempotencyKey, requestHash,
+                modelName, prompt, maxTokens, Instant.now());
+    }
+
+    private Reservation reserveForAccount(studying.gateway.domain.UserEntity user,
+            ApiKeyEntity apiKey, String idempotencyKey, String requestHash,
+            String modelName, String prompt, int maxTokens, Instant now) {
+        // Serialize creation and the idempotency lookup for parallel retries of one account.
+        WalletEntity wallet = walletRepository.findByUserIdForUpdate(user.getId())
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND,
+                        "WALLET_NOT_FOUND", "Кошелёк не найден"));
         var existing = requestRepository.findByUserIdAndIdempotencyKey(
-                apiKey.getUser().getId(), idempotencyKey);
+                user.getId(), idempotencyKey);
         if (existing.isPresent()) {
             return existingReservation(existing.get(), requestHash);
         }
@@ -73,9 +96,6 @@ public class BillingService {
                 cost(inputUpperBound, price.getInputPricePer1000()),
                 cost(maxTokens, price.getOutputPricePer1000()));
 
-        WalletEntity wallet = walletRepository.findByUserIdForUpdate(apiKey.getUser().getId())
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND,
-                        "WALLET_NOT_FOUND", "Кошелёк не найден"));
         if (wallet.availableBalance() < reserve) {
             throw new ApiException(HttpStatus.PAYMENT_REQUIRED,
                     "INSUFFICIENT_CREDITS", "Недостаточно кредитов");
@@ -83,7 +103,7 @@ public class BillingService {
         wallet.reserve(reserve);
 
         AiRequestEntity request = requestRepository.save(new AiRequestEntity(
-                UUID.randomUUID(), apiKey.getUser(), apiKey, model, price,
+                UUID.randomUUID(), user, apiKey, model, price,
                 idempotencyKey, requestHash, maxTokens, reserve, now));
         transactionRepository.save(new WalletTransactionEntity(
                 UUID.randomUUID(), wallet, request, WalletTransactionType.RESERVE,
@@ -149,6 +169,10 @@ public class BillingService {
         if (!request.getRequestHash().equals(requestHash)) {
             throw new ApiException(HttpStatus.CONFLICT, "IDEMPOTENCY_KEY_REUSED",
                     "Idempotency-Key уже использован для другого запроса");
+        }
+        if (request.getStatus() == AiRequestStatus.FAILED || request.getStatus() == AiRequestStatus.EXPIRED) {
+            throw new ApiException(HttpStatus.CONFLICT, "REQUEST_FAILED",
+                    "Запрос завершился ошибкой. Отправьте вопрос заново");
         }
         if (request.getStatus() != AiRequestStatus.COMPLETED) {
             throw new ApiException(HttpStatus.CONFLICT, "REQUEST_ALREADY_IN_PROGRESS",

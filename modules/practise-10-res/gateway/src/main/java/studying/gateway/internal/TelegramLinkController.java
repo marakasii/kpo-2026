@@ -16,6 +16,20 @@ public class TelegramLinkController {
     private final LinkCodeService links;
     private final UserAccountService accounts;
     private final UserRepository users;
+    private final studying.gateway.service.ChatCompletionService chat;
+    @org.springframework.beans.factory.annotation.Value("${spring.ai.ollama.chat.model}")
+    private String telegramModel;
+
+    public record Question(@jakarta.validation.constraints.NotBlank
+            @jakarta.validation.constraints.Size(max = 4000) String prompt) { }
+
+    @PostMapping("/internal/users/{userId}/chat/completions")
+    public studying.gateway.dto.ChatCompletionResponse ask(@PathVariable UUID userId,
+            @RequestHeader("Idempotency-Key") @jakarta.validation.constraints.Size(min = 1, max = 200) String key,
+            @jakarta.validation.Valid @RequestBody Question question) {
+        return chat.completeForTelegram(userId, "telegram:" + key,
+                new studying.gateway.dto.ChatCompletionRequest(telegramModel, question.prompt(), 300));
+    }
 
     @PostMapping("/api/telegram/link-codes")
     public LinkCodeService.LinkCode create(@RequestHeader(value = "Authorization", required = false) String authorization) {

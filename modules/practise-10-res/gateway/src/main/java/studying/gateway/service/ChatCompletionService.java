@@ -34,6 +34,19 @@ public class ChatCompletionService {
         BillingService.Reservation reservation = billingService.reserve(
                 apiKey, idempotencyKey, requestHash, command.model(),
                 command.prompt(), command.maxTokens());
+        return generate(reservation, command);
+    }
+
+    public ChatCompletionResponse completeForTelegram(UUID userId, String idempotencyKey,
+            ChatCompletionRequest command) {
+        String hash = hashingService.sha256(command.model() + "\n"
+                + command.maxTokens() + "\n" + command.prompt());
+        var reservation = billingService.reserveForTelegram(userId, idempotencyKey, hash,
+                command.model(), command.prompt(), command.maxTokens());
+        return generate(reservation, command);
+    }
+
+    private ChatCompletionResponse generate(BillingService.Reservation reservation, ChatCompletionRequest command) {
         if (reservation.cached()) {
             return response(reservation.requestId(), reservation.modelName(),
                     reservation.cachedContent(), reservation.cachedPromptTokens(),

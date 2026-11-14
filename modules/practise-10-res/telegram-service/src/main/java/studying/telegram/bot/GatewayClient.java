@@ -40,15 +40,32 @@ public class GatewayClient {
                 + wallet.path("availableBalance").asLong() + " кредитов.";
     }
 
+    public String ask(UUID userId, long updateId, String prompt) {
+        JsonNode result = call("/internal/users/" + userId + "/chat/completions",
+                Map.of("prompt", prompt), "update:" + updateId, Duration.ofSeconds(90));
+        return result.path("content").asText() + "\n\nСписано: "
+                + result.path("usage").path("chargedCredits").asLong() + " кредитов. Баланс: "
+                + result.path("balance").asLong() + ".\nЗапрос: " + result.path("requestId").asText();
+    }
+
     private JsonNode call(String path, Object body) {
+        return call(path, body, null, Duration.ofSeconds(5));
+    }
+
+    private JsonNode call(String path, Object body, String idempotencyKey, Duration timeout) {
         try {
-            var builder = HttpRequest.newBuilder(URI.create(baseUrl + path)).timeout(Duration.ofSeconds(5))
+            var builder = HttpRequest.newBuilder(URI.create(baseUrl + path)).timeout(timeout)
                     .header("X-Service-Token", token).header("Content-Type", "application/json");
+            if (idempotencyKey != null) { builder.header("Idempotency-Key", idempotencyKey); }
             if (body == null) { builder.GET(); }
             else { builder.POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(body))); }
             var response = http.send(builder.build(), HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() == 400 || response.statusCode() == 409) {
-                throw new Rejected("Неверный, просроченный или уже использованный код.");
+            if (response.statusCode() == 400 || response.statusCode() == 409 || response.statusCode() == 402) {
+                if (idempotencyKey == null) { throw new Rejected("Неверный, просроченный или уже использованный код."); }
+                JsonNode error = json.readTree(response.body());
+                if ("REQUEST_ALREADY_IN_PROGRESS".equals(error.path("code").asText())) { throw new Unavailable(); }
+                if (response.statusCode() == 402) { throw new Rejected("Недостаточно кредитов. Пополните баланс и отправьте вопрос заново."); }
+                throw new Rejected("Запрос не выполнен. Проверьте вопрос и отправьте его заново.");
             }
             if (response.statusCode() == 403 || response.statusCode() == 404) {
                 throw new Rejected("Нет доступа к аккаунту. Проверьте привязку.");

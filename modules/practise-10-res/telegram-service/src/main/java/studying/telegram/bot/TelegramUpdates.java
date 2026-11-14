@@ -26,15 +26,18 @@ public class TelegramUpdates {
         long sender = message.path("from").path("id").asLong();
         long chat = message.path("chat").path("id").asLong();
         if (sender <= 0 || chat != sender) { commands.ignore(updateId); return; }
-        String[] parts = message.path("text").asText("").strip().split("\\s+", 2);
-        String command = parts[0].split("@", 2)[0];
+        String text = message.path("text").asText("").strip();
+        if (text.isEmpty()) { commands.ignore(updateId); return; }
+        String[] parts = text.split("\\s+", 2);
+        String command = text.startsWith("/") ? parts[0].split("@", 2)[0] : "/ask";
+        String prompt = text.startsWith("/") ? (parts.length == 2 ? parts[1].strip() : "") : text;
         UUID user = null;
         TelegramCommands.Binding binding = null;
         String response;
         try {
             switch (command) {
                 case "/start", "/help" -> response = "Создайте код через POST /api/telegram/link-codes с API-ключом. "
-                        + "Отправьте /link <code> в течение пяти минут.\n/balance — баланс; /unlink — отключить.";
+                        + "Отправьте /link <code> в течение пяти минут.\nЗадайте вопрос обычным текстом или /ask <вопрос>.\n/balance — баланс; /unlink — отключить.";
                 case "/link" -> {
                     response = "Используйте /link <code>. API-ключ сюда отправлять не нужно.";
                     if (parts.length == 2) { user = gateway.redeem(updateId, sender, chat, parts[1].strip()); }
@@ -43,6 +46,13 @@ public class TelegramUpdates {
                     binding = commands.binding(sender, chat);
                     response = binding == null ? "Нет активной привязки. Инструкция: /help."
                             : gateway.balance(binding.userId());
+                }
+                case "/ask" -> {
+                    binding = commands.binding(sender, chat);
+                    if (binding == null) { response = "Сначала привяжите аккаунт: /help."; }
+                    else if (prompt.isBlank()) { response = "Используйте /ask <вопрос> или отправьте обычный текст."; }
+                    else if (prompt.length() > 4000) { response = "Вопрос слишком длинный. Максимум 4000 символов."; }
+                    else { response = gateway.ask(binding.userId(), updateId, prompt); }
                 }
                 case "/unlink" -> response = "Привязка отключена.";
                 default -> response = "Неизвестная команда. Список команд: /help.";
